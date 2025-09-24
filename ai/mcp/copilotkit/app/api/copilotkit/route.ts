@@ -1,28 +1,43 @@
 import {
   CopilotRuntime,
-  AnthropicAdapter,
+  OpenAIAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
-} from "@copilotkit/runtime";
-import { NextRequest } from "next/server";
-import { MCPClient } from "@/app/utils/mcp-client";
+} from '@copilotkit/runtime';
+import OpenAI from 'openai';
+import { NextRequest } from 'next/server';
 
-const serviceAdapter = new AnthropicAdapter({model: "claude-3-7-sonnet-latest"});
+const apiKey = process.env["AZURE_OPENAI_API_KEY"];
+const endpoint = process.env["AZURE_OPENAI_ENDPOINT"];
+const deployment = process.env["AZURE_OPENAI_DEPLOYMENT"];
+const apiVersion = process.env["AZURE_OPENAI_API_VERSION"] || "2025-01-01-preview";
 
-const runtime = new CopilotRuntime({
-  createMCPClient: async (config) => {
-    const mcpClient = new MCPClient({
-      serverUrl: config.endpoint,
-    });
-    await mcpClient.connect();
-    return mcpClient;
-  },
+if (!apiKey) {
+  throw new Error("The AZURE_OPENAI_API_KEY environment variable is missing or empty.");
+}
+
+if (!endpoint) {
+  throw new Error("The AZURE_OPENAI_ENDPOINT environment variable is missing or empty.");
+}
+
+if (!deployment) {
+  throw new Error("The AZURE_OPENAI_DEPLOYMENT environment variable is missing or empty.");
+}
+
+const normalizedEndpoint = endpoint.replace(/\/$/, "");
+const openai = new OpenAI({
+  apiKey,
+  baseURL: `${normalizedEndpoint}/openai/deployments/${deployment}`,
+  defaultQuery: { "api-version": apiVersion },
+  defaultHeaders: { "api-key": apiKey },
 });
+const serviceAdapter = new OpenAIAdapter({ openai });
+const runtime = new CopilotRuntime();
 
 export const POST = async (req: NextRequest) => {
   const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
     runtime,
     serviceAdapter,
-    endpoint: "/api/copilotkit",
+    endpoint: '/api/copilotkit',
   });
 
   return handleRequest(req);

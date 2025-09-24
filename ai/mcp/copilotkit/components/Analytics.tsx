@@ -60,7 +60,7 @@ function MainContent() {
     useEffect(() => {
         setMcpServers([
             {
-                endpoint: process.env.NEXT_PUBLIC_MCP_ENDPOINT || "http://localhost:8000/sse",
+                endpoint: process.env.NEXT_PUBLIC_MCP_ENDPOINT || "http://localhost:7000/sse",
             },
         ]);
     }, []);
