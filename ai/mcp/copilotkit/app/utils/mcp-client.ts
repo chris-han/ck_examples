@@ -3,6 +3,32 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 
+type JsonSchema = Record<string, unknown>;
+
+interface ToolSchema {
+  type?: string;
+  required?: string[];
+  properties?: Record<string, ToolSchema>;
+}
+
+interface ToolDefinition {
+  name: string;
+  description?: string;
+  inputSchema?: ToolSchema;
+}
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const isToolDefinition = (value: unknown): value is ToolDefinition => {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+
+  return typeof value.name === "string";
+};
+
 export interface McpClientOptions {
   serverUrl: string;
   headers?: Record<string, string>;
@@ -124,103 +150,31 @@ export class MCPClient implements MCPClientInterface {
 
       // Transform to the expected format
       const toolsMap: Record<string, MCPTool> = {};
+      const toolsArray = this.extractTools(rawToolsResult);
 
-      if (rawToolsResult) {
-        // If the result has a 'tools' property with an array of tools
-        if (
-          typeof rawToolsResult === "object" &&
-          "tools" in rawToolsResult &&
-          Array.isArray(rawToolsResult.tools)
-        ) {
-          rawToolsResult.tools.forEach((tool: any) => {
-            if (tool && typeof tool === "object" && "name" in tool) {
-              // Extract required parameters if available
-              let requiredParams: string[] = [];
+      toolsArray.forEach((tool) => {
+        const requiredParams = Array.isArray(tool.inputSchema?.required)
+          ? tool.inputSchema?.required ?? []
+          : [];
 
-              if (
-                tool.inputSchema &&
-                typeof tool.inputSchema === "object" &&
-                "required" in tool.inputSchema &&
-                Array.isArray(tool.inputSchema.required)
-              ) {
-                requiredParams = tool.inputSchema.required;
-              }
-
-              // Enhanced description with parameter requirements if available
-              let enhancedDescription = tool.description || "";
-
-              // Add parameter information to the description
-              if (requiredParams.length > 0) {
-                enhancedDescription += `\nRequired parameters: ${requiredParams.join(
-                  ", "
-                )}`;
-              }
-
-              // Add example structure if we can derive it from schema
-              const exampleInput = this.deriveExampleInput(
-                tool.inputSchema,
-                tool.name
-              );
-              if (exampleInput) {
-                enhancedDescription += `\nExample usage: ${exampleInput}`;
-              }
-
-              toolsMap[tool.name] = {
-                description: enhancedDescription,
-                schema: tool.inputSchema || {},
-                execute: async (args: Record<string, unknown>) => {
-                  return this.callTool(tool.name, args);
-                },
-              };
-            }
-          });
+        let enhancedDescription = tool.description ?? "";
+        if (requiredParams.length > 0) {
+          enhancedDescription += `\nRequired parameters: ${requiredParams.join(", ")}`;
         }
-        // If the result is an array directly
-        else if (Array.isArray(rawToolsResult)) {
-          rawToolsResult.forEach((tool: any) => {
-            if (tool && typeof tool === "object" && "name" in tool) {
-              // Extract required parameters if available
-              let requiredParams: string[] = [];
 
-              if (
-                tool.inputSchema &&
-                typeof tool.inputSchema === "object" &&
-                "required" in tool.inputSchema &&
-                Array.isArray(tool.inputSchema.required)
-              ) {
-                requiredParams = tool.inputSchema.required;
-              }
-
-              // Enhanced description with parameter requirements if available
-              let enhancedDescription = tool.description || "";
-
-              // Add parameter information to the description
-              if (requiredParams.length > 0) {
-                enhancedDescription += `\nRequired parameters: ${requiredParams.join(
-                  ", "
-                )}`;
-              }
-
-              // Add example structure if we can derive it from schema
-              const exampleInput = this.deriveExampleInput(
-                tool.inputSchema,
-                tool.name
-              );
-              if (exampleInput) {
-                enhancedDescription += `\nExample usage: ${exampleInput}`;
-              }
-
-              toolsMap[tool.name] = {
-                description: enhancedDescription,
-                schema: tool.inputSchema || {},
-                execute: async (args: Record<string, unknown>) => {
-                  return this.callTool(tool.name, args);
-                },
-              };
-            }
-          });
+        const exampleInput = this.deriveExampleInput(tool.inputSchema, tool.name);
+        if (exampleInput) {
+          enhancedDescription += `\nExample usage: ${exampleInput}`;
         }
-      }
+
+        toolsMap[tool.name] = {
+          description: enhancedDescription,
+          schema: (tool.inputSchema as JsonSchema) ?? {},
+          execute: async (args: Record<string, unknown>) => {
+            return this.callTool(tool.name, args);
+          },
+        };
+      });
 
       // Cache the result
       this.toolsCache = toolsMap;
@@ -269,7 +223,7 @@ export class MCPClient implements MCPClientInterface {
   public async callTool(
     name: string,
     args: Record<string, unknown>
-  ): Promise<any> {
+  ): Promise<unknown> {
     try {
       console.log(
         `Calling tool: ${name} with args:`,
@@ -281,29 +235,33 @@ export class MCPClient implements MCPClientInterface {
 
       // Process string-encoded JSON objects
       const processedArgs = this.processStringifiedJsonArgs(fixedArgs);
+      const paramsCandidate = processedArgs.params;
 
-      // Log the processed arguments
-      console.log(
-        `Processed args for ${name}:`,
-        JSON.stringify(processedArgs.params, null, 2)
-      );
-      
-      // Check if the params object in processedArgs contains an object
-      if (processedArgs.params && Object.keys(processedArgs.params).length > 0) {
+      if (isPlainObject(paramsCandidate)) {
+        const cleanedParams = Object.keys(paramsCandidate).length > 0 ? paramsCandidate : {};
+
         console.log(
-          `Calling tool ${name} with processed params:`, JSON.stringify(processedArgs.params, null, 2))
-        // Call the tool with processed arguments
+          `Processed args for ${name}:`,
+          JSON.stringify(cleanedParams, null, 2)
+        );
+
         return this.client.callTool({
-          name: name,
-          arguments: processedArgs.params as Record<string, unknown>,
-        });
-      } else {
-        // If params is not an object, call the tool directly
-        return this.client.callTool({
-          name: name,
-          arguments: processedArgs,
+          name,
+          arguments: cleanedParams,
         });
       }
+
+      const argumentsToSend = Object.keys(processedArgs).length === 0 ? {} : processedArgs;
+
+      console.log(
+        `Processed args for ${name}:`,
+        JSON.stringify(argumentsToSend, null, 2)
+      );
+
+      return this.client.callTool({
+        name,
+        arguments: argumentsToSend,
+      });
     } catch (error) {
       console.error(`Error calling tool ${name}:`, error);
       throw error;
@@ -318,15 +276,12 @@ export class MCPClient implements MCPClientInterface {
     args: Record<string, unknown>
   ): Record<string, unknown> {
     // Handle double-nested params: { params: { params: { actual data } } }
-    if (
-      "params" in args &&
-      args.params !== null &&
-      typeof args.params === "object"
-    ) {
-      const paramsObj = args.params as Record<string, unknown>;
-      if ("params" in paramsObj) {
+    const paramsCandidate = args.params;
+    if (isPlainObject(paramsCandidate) && "params" in paramsCandidate) {
+      const nestedParams = (paramsCandidate as Record<string, unknown>).params;
+      if (isPlainObject(nestedParams)) {
         console.log("Detected double-nested params, fixing structure");
-        return paramsObj;
+        return paramsCandidate;
       }
     }
 
@@ -341,33 +296,8 @@ export class MCPClient implements MCPClientInterface {
   ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
-    // Process each argument to handle potential JSON strings
     for (const [key, value] of Object.entries(args)) {
-      if (typeof value === "string") {
-        // Try to parse potential JSON strings
-        try {
-          const parsedValue = JSON.parse(value);
-          result[key] = parsedValue;
-        } catch (e) {
-          // Not valid JSON, keep as string
-          result[key] = value;
-        }
-      } else if (Array.isArray(value)) {
-        // Preserve arrays properly
-        result[key] = value.map((item) =>
-          typeof item === "object" && item !== null
-            ? this.processStringifiedJsonArgs(item as Record<string, unknown>)
-            : item
-        );
-      } else if (value !== null && typeof value === "object") {
-        // Recursively process nested objects
-        result[key] = this.processStringifiedJsonArgs(
-          value as Record<string, unknown>
-        );
-      } else {
-        // Keep other types as-is
-        result[key] = value;
-      }
+      result[key] = this.normalizeValue(value);
     }
 
     return result;
@@ -378,7 +308,7 @@ export class MCPClient implements MCPClientInterface {
    * This helps the LLM understand how to format requests properly
    */
   private deriveExampleInput(
-    inputSchema: any,
+    inputSchema: ToolSchema | undefined,
     toolName: string
   ): string | null {
     if (!inputSchema) return null;
@@ -391,24 +321,25 @@ export class MCPClient implements MCPClientInterface {
 
       if (inputSchema.type === "object" && inputSchema.properties) {
         // Build a minimal example object
-        const example: Record<string, any> = {};
-        const props = inputSchema.properties;
+        const example: Record<string, unknown> = {};
+        const props = inputSchema.properties ?? {};
 
         // Add required properties first
         if (Array.isArray(inputSchema.required)) {
           inputSchema.required.forEach((key: string) => {
-            if (key in props) {
-              if (props[key].type === "object" && props[key].properties) {
-                example[key] = this.createExampleObject(props[key]);
-              } else if (props[key].type === "string") {
-                example[key] = `"Example ${key}"`;
-              } else if (props[key].type === "number") {
-                example[key] = 123;
-              } else if (props[key].type === "boolean") {
-                example[key] = true;
-              } else {
-                example[key] = null;
-              }
+            const propertySchema = props?.[key];
+            if (!propertySchema) return;
+
+            if (propertySchema.type === "object" && propertySchema.properties) {
+              example[key] = this.createExampleObject(propertySchema);
+            } else if (propertySchema.type === "string") {
+              example[key] = `Example ${key}`;
+            } else if (propertySchema.type === "number") {
+              example[key] = 123;
+            } else if (propertySchema.type === "boolean") {
+              example[key] = true;
+            } else {
+              example[key] = null;
             }
           });
         }
@@ -426,34 +357,67 @@ export class MCPClient implements MCPClientInterface {
   /**
    * Creates an example object from an object schema
    */
-  private createExampleObject(schema: any): Record<string, any> {
-    const result: Record<string, any> = {};
+  private createExampleObject(schema: ToolSchema): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
 
     if (schema.type !== "object" || !schema.properties) {
       return result;
     }
 
-    const props = schema.properties;
+    const props = schema.properties ?? {};
 
     // Add required properties
     if (Array.isArray(schema.required)) {
       schema.required.forEach((key: string) => {
-        if (key in props) {
-          if (props[key].type === "object" && props[key].properties) {
-            result[key] = this.createExampleObject(props[key]);
-          } else if (props[key].type === "string") {
-            result[key] = `Example ${key}`;
-          } else if (props[key].type === "number") {
-            result[key] = 123;
-          } else if (props[key].type === "boolean") {
-            result[key] = true;
-          } else {
-            result[key] = null;
-          }
+        const propertySchema = props?.[key];
+        if (!propertySchema) return;
+
+        if (propertySchema.type === "object" && propertySchema.properties) {
+          result[key] = this.createExampleObject(propertySchema);
+        } else if (propertySchema.type === "string") {
+          result[key] = `Example ${key}`;
+        } else if (propertySchema.type === "number") {
+          result[key] = 123;
+        } else if (propertySchema.type === "boolean") {
+          result[key] = true;
+        } else {
+          result[key] = null;
         }
       });
     }
 
     return result;
+  }
+
+  private extractTools(result: unknown): ToolDefinition[] {
+    if (Array.isArray(result)) {
+      return result.filter(isToolDefinition);
+    }
+
+    if (isPlainObject(result) && Array.isArray((result as { tools?: unknown }).tools)) {
+      return ((result as { tools?: unknown }).tools as unknown[]).filter(isToolDefinition);
+    }
+
+    return [];
+  }
+
+  private normalizeValue(value: unknown): unknown {
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.normalizeValue(entry));
+    }
+
+    if (isPlainObject(value)) {
+      return this.processStringifiedJsonArgs(value);
+    }
+
+    return value;
   }
 }

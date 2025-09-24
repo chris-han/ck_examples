@@ -9,6 +9,7 @@ import { CopilotKit } from "@copilotkit/react-core";
 import { CopilotKitCSSProperties } from "@copilotkit/react-ui";
 import "@copilotkit/react-ui/styles.css";
 import "./copilotkit.css";
+import SSEStatusIndicator from "./SSEStatusIndicator";
 
 const runtimeUrl = process.env.NEXT_PUBLIC_COPILOTKIT_RUNTIME_URL
 const publicApiKey = process.env.NEXT_PUBLIC_COPILOT_API_KEY;
@@ -42,20 +43,23 @@ export default function Analytics() {
 function SideBarHeader() {
     const { reset } = useCopilotChat();
     return (
-        <div className="flex justify-between p-4">
+        <div className="flex items-center justify-between p-4">
             <p className="text-white content-center font-inter font-bold text-lg">Explorer assistant</p>
-            <button
-                className="px-6 py-3 hover:cursor-pointer text-[#FAFF69]"
-                onClick={() => reset()}
-            >
-                Clear
-            </button>
+            <div className="flex items-center gap-4">
+                <SSEStatusIndicator />
+                <button
+                    className="px-6 py-3 hover:cursor-pointer text-[#FAFF69]"
+                    onClick={() => reset()}
+                >
+                    Clear
+                </button>
+            </div>
         </div>
     );
 }
 
 function MainContent() {
-    const { mcpServers, setMcpServers } = useCopilotChat();
+    const { setMcpServers, reset } = useCopilotChat();
 
     useEffect(() => {
         setMcpServers([
@@ -63,7 +67,7 @@ function MainContent() {
                 endpoint: process.env.NEXT_PUBLIC_MCP_ENDPOINT || "http://localhost:7000/sse",
             },
         ]);
-    }, []);
+    }, [setMcpServers]);
 
     // 🪁 Catch-all Action for rendering MCP tool calls: https://docs.copilotkit.ai/guides/generative-ui?gen-ui-type=Catch+all+renders
     useCopilotAction({
@@ -77,7 +81,6 @@ function MainContent() {
         name: "clearContext",
         description: "Clear the context of the chat.",
         handler: async () => {
-            const { reset } = useCopilotChat();
             reset();
         }
     });

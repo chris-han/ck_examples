@@ -1,6 +1,5 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import ReactECharts from 'echarts-for-react';
-import { color } from 'echarts';
 
 export interface DataPoint {
   name: string;
@@ -27,7 +26,6 @@ const GenericChart = ({ data, chartType, title, xAxis }: ChartProps) => {
     '#CF4B4B'
   ];
 
-  const chartRef = useRef(null);
   const xAxisLabel = xAxis || 'name'; // Default x-axis label if not provided
   // Helper function to get keys of data objects, excluding xAxisLabel
   const getDataKeys = () => {
@@ -37,7 +35,6 @@ const GenericChart = ({ data, chartType, title, xAxis }: ChartProps) => {
   };
 
   const dataKeys = getDataKeys();
-  console.log('Data keys:', dataKeys);
   const categories = data?.map(item => item[xAxisLabel]);
 
   // Create series array for the chart
@@ -143,18 +140,16 @@ const GenericChart = ({ data, chartType, title, xAxis }: ChartProps) => {
   }
 
   return (
-    data? <div
-      className='relative rounded-lg h-full justify-between flex flex-col border bg-[#282828] border-[#414141]'>
+    <div className='relative rounded-lg h-full justify-between flex flex-col border bg-[#282828] border-[#414141]'>
+      <div className="px-6 pt-6">
+        <h3 className="text-white font-semibold text-lg leading-tight">{title}</h3>
+      </div>
       <ReactECharts
-        ref={chartRef}
         option={getOption()}
         style={{ width: '100%', height: '400px' }}
         className="echarts-for-react"
       />
-    </div>: <div
-      className='relative rounded-lg bg-slate-850 border border-slate-700 h-full justify-between flex flex-col'>
-        <div className="text-red-600 font-semibold text-lg mb-2">Error chart rendering</div>
-      </div>
+    </div>
   );
 };
 

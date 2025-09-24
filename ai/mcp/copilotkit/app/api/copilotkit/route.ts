@@ -5,6 +5,7 @@ import {
 } from '@copilotkit/runtime';
 import OpenAI from 'openai';
 import { NextRequest } from 'next/server';
+import { MCPClient } from '@/app/utils/mcp-client';
 
 const apiKey = process.env["AZURE_OPENAI_API_KEY"];
 const endpoint = process.env["AZURE_OPENAI_ENDPOINT"];
@@ -31,7 +32,19 @@ const openai = new OpenAI({
   defaultHeaders: { "api-key": apiKey },
 });
 const serviceAdapter = new OpenAIAdapter({ openai });
-const runtime = new CopilotRuntime();
+const runtime = new CopilotRuntime({
+  async createMCPClient(config) {
+    const client = new MCPClient({
+      serverUrl: config.endpoint,
+      headers: config.apiKey
+        ? { Authorization: `Bearer ${config.apiKey}` }
+        : undefined,
+    });
+
+    await client.connect();
+    return client;
+  },
+});
 
 export const POST = async (req: NextRequest) => {
   const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
