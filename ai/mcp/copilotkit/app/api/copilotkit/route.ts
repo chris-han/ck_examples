@@ -7,6 +7,9 @@ import OpenAI from 'openai';
 import { NextRequest } from 'next/server';
 import { MCPClient } from '@/app/utils/mcp-client';
 
+// Optional self-hosted agent endpoint exposed via CopilotKitRemoteEndpoint
+const remoteEndpoint = process.env.COPILOTKIT_REMOTE_ENDPOINT;
+
 const apiKey = process.env["AZURE_OPENAI_API_KEY"];
 const endpoint = process.env["AZURE_OPENAI_ENDPOINT"];
 const deployment = process.env["AZURE_OPENAI_DEPLOYMENT"];
@@ -33,6 +36,7 @@ const openai = new OpenAI({
 });
 const serviceAdapter = new OpenAIAdapter({ openai });
 const runtime = new CopilotRuntime({
+  remoteEndpoints: remoteEndpoint ? [{ url: remoteEndpoint }] : undefined,
   async createMCPClient(config) {
     const client = new MCPClient({
       serverUrl: config.endpoint,

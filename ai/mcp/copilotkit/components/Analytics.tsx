@@ -11,14 +11,22 @@ import "@copilotkit/react-ui/styles.css";
 import "./copilotkit.css";
 import SSEStatusIndicator from "./SSEStatusIndicator";
 
-const runtimeUrl = process.env.NEXT_PUBLIC_COPILOTKIT_RUNTIME_URL
+const runtimeUrl = process.env.NEXT_PUBLIC_COPILOTKIT_RUNTIME_URL || "/api/copilotkit";
+const publicLicenseKey = process.env.NEXT_PUBLIC_COPILOTKIT_LICENSE_KEY;
 const publicApiKey = process.env.NEXT_PUBLIC_COPILOT_API_KEY;
+
+const identityProps: Record<string, string> = {};
+if (publicLicenseKey) {
+    identityProps.publicLicenseKey = publicLicenseKey;
+} else if (publicApiKey) {
+    identityProps.publicApiKey = publicApiKey;
+}
 
 export default function Analytics() {
     return (
         <CopilotKit
             runtimeUrl={runtimeUrl}
-            publicApiKey={publicApiKey}
+            {...identityProps}
         >
             <main className="p-8" style={
                     {

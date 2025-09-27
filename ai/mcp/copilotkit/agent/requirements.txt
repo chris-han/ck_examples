@@ -1,0 +1,7 @@
+copilotkit<=0.2.0a0
+fastapi
+pydantic
+pydantic-ai
+python-dotenv
+../external/mcp-clickhouse
+uvicorn

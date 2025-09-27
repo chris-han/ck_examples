@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# pytest
+/.pytest_cache/
+
 # production
 /build
 
@@ -42,4 +45,3 @@ next-env.d.ts
 
 # external
 /external
-
