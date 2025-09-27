@@ -88,5 +88,5 @@
 }
 
 .poweredBy {
-  background-color: #282828;
+  display: none !important;
 }

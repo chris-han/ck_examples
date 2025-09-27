@@ -1,7 +1,95 @@
 "use client"
-import GenericChart, { ChartProps } from "./GenericChart";
+import GenericChart, { ChartProps, DataPoint } from "./GenericChart";
 import { useState } from "react";
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
+
+type UnknownRecord = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is UnknownRecord =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const coerceValue = (value: unknown): string | number => {
+    if (typeof value === "number") {
+        return value;
+    }
+
+    if (typeof value === "string") {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : value;
+    }
+
+    if (typeof value === "boolean") {
+        return value ? 1 : 0;
+    }
+
+    return String(value ?? "");
+};
+
+const normaliseDataPoint = (raw: unknown, index: number): DataPoint | null => {
+    if (typeof raw === "string" || typeof raw === "number") {
+        return { name: String(raw), value: typeof raw === "number" ? raw : 1 };
+    }
+
+    if (!isRecord(raw)) {
+        return null;
+    }
+
+    const entries: Record<string, string | number> = {};
+    for (const [key, value] of Object.entries(raw)) {
+        entries[key] = coerceValue(value);
+    }
+
+    if (!("name" in entries)) {
+        const [firstKey] = Object.keys(entries);
+        entries.name = firstKey ? String(entries[firstKey]) : `Item ${index + 1}`;
+    } else {
+        entries.name = String(entries.name);
+    }
+
+    return entries as DataPoint;
+};
+
+const normaliseData = (input: unknown): DataPoint[] => {
+    let source = input;
+
+    if (typeof source === "string") {
+        try {
+            source = JSON.parse(source);
+        } catch {
+            // Treat as comma separated list if possible, otherwise single string entry
+            const parts = source
+                .split(/,|\n|\r/)
+                .map((part) => part.trim())
+                .filter(Boolean);
+
+            if (parts.length > 1) {
+                return parts.map((value, index) => normaliseDataPoint(value, index)).filter((value): value is DataPoint => value !== null);
+            }
+
+            return [
+                {
+                    name: source,
+                    value: 1,
+                },
+            ];
+        }
+    }
+
+    if (!Array.isArray(source)) {
+        if (isRecord(source)) {
+            return Object.entries(source).map(([key, value], index) =>
+                normaliseDataPoint({ name: key, value }, index)
+            ).filter((value): value is DataPoint => value !== null);
+        }
+
+        const coerced = normaliseDataPoint(source, 0);
+        return coerced ? [coerced] : [];
+    }
+
+    return source
+        .map((item, index) => normaliseDataPoint(item, index))
+        .filter((item): item is DataPoint => item !== null);
+};
 
 function DynamicGrid({ charts }: { charts: ChartProps[] }) {
     return (
@@ -44,10 +132,25 @@ export default function ChartsGrid() {
         ],
 
         handler: async ({ data, chartType, title, xAxis }) => {
+            const parsedData = normaliseData(data);
+
+            if (parsedData.length === 0) {
+                console.warn("generateChart called without usable data", data);
+                return;
+            }
+
+            const resolvedChartType = typeof chartType === "string" && chartType.trim().length > 0
+                ? chartType
+                : "bar";
+
+            const resolvedTitle = typeof title === "string" && title.trim().length > 0
+                ? title.trim().slice(0, 30)
+                : "Custom chart";
+
             const newChart: ChartProps = {
-                data,
-                chartType,
-                title,
+                data: parsedData,
+                chartType: resolvedChartType,
+                title: resolvedTitle,
                 xAxis
             };
 
