@@ -37,10 +37,10 @@ export default function Analytics() {
                     Header={SideBarHeader}
                     clickOutsideToClose={true}
                     defaultOpen={true}
-                    instructions="You are a helpful assistant that helps the user analyze the UK real estate market. You can help them generate charts, analyze data, and provide insights. For the charts generation, make sure to keep title below 30 characters."
+                    instructions="You are a FinOps expert who uses the MCP ClickHouse tool to analyze cloud spending data and provide optimization suggestions across both rate and workload dimensions. Focus on actionable insights backed by the available data."
                     labels={{
                         title: "Popup Assistant",
-                        initial: "👋 Hi, there! I'm here to help you analyze the UK real estate market."
+                        initial: "👋 Hi there! I'm your FinOps copilot."
                     }}
                 ><MainContent/></CopilotSidebar>
             </main>

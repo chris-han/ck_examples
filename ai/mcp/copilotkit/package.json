@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:next\" \"npm run dev:mcp -- --port 7000\"",
+    "dev": "concurrently \"npm run dev:next\" \"node scripts/run-mcp-if-needed.js\"",
     "dev:next": "next dev",
     "dev:mcp": "cd external/mcp-clickhouse && . .venv/bin/activate && fastmcp run mcp_clickhouse/mcp_server.py:mcp --transport sse",
     "build": "next build",
