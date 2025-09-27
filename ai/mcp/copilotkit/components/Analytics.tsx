@@ -1,6 +1,6 @@
 
 "use client";
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import ChartsGrid from "./ChartsGrid";
 import { useCopilotChat, useCopilotAction, CatchAllActionRenderProps } from "@copilotkit/react-core";
 import { CopilotSidebar } from "@copilotkit/react-ui";
@@ -66,8 +66,27 @@ function SideBarHeader() {
     );
 }
 
+type ToolCallSnapshot = {
+    name?: string;
+    args?: unknown;
+    result?: unknown;
+};
+
+function ToolRenderRecorder({ onComplete, ...props }: CatchAllActionRenderProps<[]> & { onComplete: (payload: ToolCallSnapshot) => void }) {
+    const { status, name, args, result } = props;
+
+    useEffect(() => {
+        if (status === "complete") {
+            onComplete({ name, args, result });
+        }
+    }, [status, name, args, result, onComplete]);
+
+    return <DefaultToolRender {...props} />;
+}
+
 function MainContent() {
     const { setMcpServers, reset } = useCopilotChat();
+    const [latestToolCall, setLatestToolCall] = useState<ToolCallSnapshot | null>(null);
 
     useEffect(() => {
         setMcpServers([
@@ -77,11 +96,15 @@ function MainContent() {
         ]);
     }, [setMcpServers]);
 
+    const handleToolComplete = useCallback((snapshot: ToolCallSnapshot) => {
+        setLatestToolCall(snapshot);
+    }, []);
+
     // 🪁 Catch-all Action for rendering MCP tool calls: https://docs.copilotkit.ai/guides/generative-ui?gen-ui-type=Catch+all+renders
     useCopilotAction({
         name: "*",
-        render: ({ name, status, args, result }: CatchAllActionRenderProps<[]>) => (
-            <DefaultToolRender status={status} name={name} args={args} result={result} />
+        render: (renderProps: CatchAllActionRenderProps<[]>) => (
+            <ToolRenderRecorder {...renderProps} onComplete={handleToolComplete} />
         ),
     });
 
@@ -98,7 +121,7 @@ function MainContent() {
     return (
         <div>
             <p className="text-white font-bold font-inter text-2xl leading-6 pb-6">Custom analytics dashboard</p>
-            <ChartsGrid/>
+            <ChartsGrid latestToolCall={latestToolCall} />
         </div>
 
     )

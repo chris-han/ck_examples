@@ -1,11 +1,11 @@
 import {
   CopilotRuntime,
-  OpenAIAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from '@copilotkit/runtime';
 import OpenAI from 'openai';
 import { NextRequest } from 'next/server';
 import { MCPClient } from '@/app/utils/mcp-client';
+import { AzureOpenAIAdapter } from '@/lib/azure-openai-adapter';
 
 // Optional self-hosted agent endpoint exposed via CopilotKitRemoteEndpoint
 const remoteEndpoint = process.env.COPILOTKIT_REMOTE_ENDPOINT;
@@ -34,7 +34,10 @@ const openai = new OpenAI({
   defaultQuery: { "api-version": apiVersion },
   defaultHeaders: { "api-key": apiKey },
 });
-const serviceAdapter = new OpenAIAdapter({ openai });
+const serviceAdapter = new AzureOpenAIAdapter({
+  openai,
+  maxAttempts: 2,
+});
 const runtime = new CopilotRuntime({
   remoteEndpoints: remoteEndpoint ? [{ url: remoteEndpoint }] : undefined,
   async createMCPClient(config) {

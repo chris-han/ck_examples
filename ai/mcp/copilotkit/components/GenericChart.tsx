@@ -31,11 +31,24 @@ const GenericChart = ({ data, chartType, title, xAxis }: ChartProps) => {
   const getDataKeys = () => {
     if (!data || data.length === 0) return [];
     const firstItem = data[0];
-    return Object.keys(firstItem).filter(key => key !== xAxisLabel);
+    return Object.keys(firstItem).filter(key => {
+      if (key === xAxisLabel) {
+        return false;
+      }
+
+      return typeof firstItem[key] === 'number';
+    });
   };
 
   const dataKeys = getDataKeys();
-  const categories = data?.map(item => item[xAxisLabel]);
+  const categories = data?.map((item, index) => {
+    const value = item[xAxisLabel];
+    if (value === undefined || value === null || value === '') {
+      return `Item ${index + 1}`;
+    }
+
+    return String(value);
+  });
 
   // Create series array for the chart
   const getSeries = () => {
@@ -72,7 +85,7 @@ const GenericChart = ({ data, chartType, title, xAxis }: ChartProps) => {
       type: chartType.toLowerCase() === 'area' ? 'line' : chartType.toLowerCase(),
       // For area charts, we use line type with areaStyle
       ...(chartType.toLowerCase() === 'area' && { areaStyle: {} }),
-      data: data.map(item => item[key])
+      data: data.map(item => (typeof item[key] === 'number' ? item[key] : Number(item[key]) || 0))
     }));
   };
 
