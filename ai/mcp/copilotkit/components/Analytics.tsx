@@ -10,6 +10,34 @@ import { CopilotKitCSSProperties } from "@copilotkit/react-ui";
 import "@copilotkit/react-ui/styles.css";
 import "./copilotkit.css";
 import SSEStatusIndicator from "./SSEStatusIndicator";
+import type { ComponentsMap } from "@copilotkit/react-ui";
+
+const markdownOverrides: ComponentsMap = {
+    p: ({ children, ...props }) => {
+        const childArray = React.Children.toArray(children);
+        const containsBlock = childArray.some((child) => {
+            if (!React.isValidElement(child)) {
+                return false;
+            }
+
+            const type = child.type;
+            if (typeof type === "string") {
+                return ["div", "pre", "table", "ol", "ul"].includes(type);
+            }
+
+            const displayName = (type as { displayName?: string; name?: string }).displayName || (type as { name?: string }).name || "";
+            return /codeblock/i.test(displayName);
+        });
+
+        const Wrapper = containsBlock ? "div" : "p";
+
+        return (
+            <Wrapper className="copilotKitMarkdownElement" {...props}>
+                {children}
+            </Wrapper>
+        );
+    },
+};
 
 const runtimeUrl = process.env.NEXT_PUBLIC_COPILOTKIT_RUNTIME_URL || "/api/copilotkit";
 const publicLicenseKey = process.env.NEXT_PUBLIC_COPILOTKIT_LICENSE_KEY;
@@ -42,6 +70,7 @@ export default function Analytics() {
                         title: "Popup Assistant",
                         initial: "👋 Hi there! I'm your FinOps copilot."
                     }}
+                    markdownTagRenderers={markdownOverrides}
                 ><MainContent/></CopilotSidebar>
             </main>
         </CopilotKit>
